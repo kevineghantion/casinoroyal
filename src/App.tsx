@@ -13,11 +13,9 @@ import Wallet from "./pages/Wallet";
 import Games from "./pages/Games";
 import Profile from "./pages/Profile";
 import Help from "./pages/Help";
-import OwnerRoutes from "./pages/owner";
+import OwnerRoutes from "./pages/owner/index";
 import { OwnerRoute } from "./components/OwnerRoute";
 import NotFound from "./pages/NotFound";
-
-
 
 const App = () => (
   <AuthProvider>

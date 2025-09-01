@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Home, 
-  Wallet, 
-  Gamepad2, 
-  User, 
-  HelpCircle, 
-  LogOut, 
-  Menu, 
+import {
+  Home,
+  Gamepad2,
+  User,
+  HelpCircle,
+  LogOut,
+  Menu,
   X,
   Shield
 } from 'lucide-react';
@@ -17,6 +16,7 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { useSFX } from '@/hooks/useSFX';
 import { NeonButton } from './NeonButton';
 import { ToggleSound } from './ToggleSound';
+import { NavBalanceButton } from './NavBalanceButton';
 import { slideInFromRight, hoverGlow } from '@/lib/animations';
 
 export const Navbar = () => {
@@ -28,7 +28,6 @@ export const Navbar = () => {
 
   const navigation = [
     { name: 'Home', href: '/', icon: Home },
-    { name: 'Wallet', href: '/wallet', icon: Wallet },
     { name: 'Games', href: '/games', icon: Gamepad2 },
     { name: 'Profile', href: '/profile', icon: User },
     { name: 'Help', href: '/help', icon: HelpCircle },
@@ -39,15 +38,22 @@ export const Navbar = () => {
     setIsOpen(false);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     playClick();
-    logout();
-    navigate('/');
     setIsOpen(false);
+    
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+    
+    // Always navigate to home after logout
+    navigate('/');
   };
 
   return (
-    <motion.nav 
+    <motion.nav
       className="fixed top-0 left-0 right-0 z-50 bg-bg-darker/90 backdrop-blur-lg border-b border-neon-gray-dark"
       initial={{ y: -100 }}
       animate={{ y: 0 }}
@@ -56,8 +62,8 @@ export const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             onClick={handleNavClick}
             className="flex items-center space-x-2 group"
           >
@@ -75,7 +81,7 @@ export const Navbar = () => {
             {navigation.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
-              
+
               return (
                 <Link
                   key={item.name}
@@ -84,8 +90,8 @@ export const Navbar = () => {
                   className={cn(
                     'flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200',
                     'hover:bg-bg-card hover:shadow-glow',
-                    isActive 
-                      ? 'text-neon-pink shadow-neon-pink bg-bg-card' 
+                    isActive
+                      ? 'text-neon-pink shadow-neon-pink bg-bg-card'
                       : 'text-neon-gray hover:text-neon-white'
                   )}
                 >
@@ -94,7 +100,10 @@ export const Navbar = () => {
                 </Link>
               );
             })}
-            
+
+            {/* Balance Widget - Only for authenticated users */}
+            {user && <NavBalanceButton />}
+
             {/* Admin Panel Link - Only for owners */}
             {user && profile?.role === 'owner' && (
               <Link
@@ -104,7 +113,7 @@ export const Navbar = () => {
                   'flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200',
                   'hover:bg-bg-card hover:shadow-glow border border-lime-green/30',
                   location.pathname.startsWith('/owner')
-                    ? 'text-lime-green shadow-neon-green bg-bg-card' 
+                    ? 'text-lime-green shadow-neon-green bg-bg-card'
                     : 'text-lime-green/70 hover:text-lime-green'
                 )}
               >
@@ -117,11 +126,11 @@ export const Navbar = () => {
           {/* User Actions */}
           <div className="hidden md:flex items-center space-x-4">
             <ToggleSound />
-            
+
             {user ? (
               <div className="flex items-center space-x-4">
                 <div className="text-sm text-neon-gray">
-                  Welcome, <span className="text-neon-pink font-medium">{profile?.username || 'Player'}</span>
+                  Welcome, <span className="text-neon-pink font-medium">{profile?.username || 'User'}</span>
                 </div>
                 <NeonButton
                   variant="outline"
@@ -192,7 +201,7 @@ export const Navbar = () => {
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.href;
-                
+
                 return (
                   <Link
                     key={item.name}
@@ -201,8 +210,8 @@ export const Navbar = () => {
                     className={cn(
                       'flex items-center space-x-3 px-3 py-3 rounded-lg transition-all duration-200',
                       'hover:bg-bg-card hover:shadow-glow',
-                      isActive 
-                        ? 'text-neon-pink shadow-neon-pink bg-bg-card' 
+                      isActive
+                        ? 'text-neon-pink shadow-neon-pink bg-bg-card'
                         : 'text-neon-gray hover:text-neon-white'
                     )}
                   >
@@ -211,7 +220,14 @@ export const Navbar = () => {
                   </Link>
                 );
               })}
-              
+
+              {/* Balance Widget for Mobile - Only for authenticated users */}
+              {user && (
+                <div className="px-3 py-2">
+                  <NavBalanceButton />
+                </div>
+              )}
+
               {user && profile?.role === 'owner' && (
                 <Link
                   to="/owner"
@@ -220,7 +236,7 @@ export const Navbar = () => {
                     'flex items-center space-x-3 px-3 py-3 rounded-lg transition-all duration-200',
                     'hover:bg-bg-card hover:shadow-glow border border-lime-green/30',
                     location.pathname.startsWith('/owner')
-                      ? 'text-lime-green shadow-neon-green bg-bg-card' 
+                      ? 'text-lime-green shadow-neon-green bg-bg-card'
                       : 'text-lime-green/70 hover:text-lime-green'
                   )}
                 >
@@ -228,17 +244,17 @@ export const Navbar = () => {
                   <span className="font-medium">Admin Panel</span>
                 </Link>
               )}
-              
+
               <div className="pt-4 border-t border-neon-gray-dark">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-sm text-neon-gray">Sound Effects</span>
                   <ToggleSound />
                 </div>
-                
+
                 {user ? (
                   <div className="space-y-3">
                     <div className="text-sm text-neon-gray">
-                      Welcome, <span className="text-neon-pink font-medium">{profile?.username || 'Player'}</span>
+                      Welcome, <span className="text-neon-pink font-medium">{profile?.username || 'User'}</span>
                     </div>
                     <NeonButton
                       variant="outline"

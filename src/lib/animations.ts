@@ -1,17 +1,17 @@
 // Casino Royal Framer Motion Animation Variants
 export const pageTransition = {
-  initial: { 
-    opacity: 0, 
+  initial: {
+    opacity: 0,
     y: 30,
     scale: 0.95
   },
-  animate: { 
-    opacity: 1, 
+  animate: {
+    opacity: 1,
     y: 0,
     scale: 1
   },
-  exit: { 
-    opacity: 0, 
+  exit: {
+    opacity: 0,
     y: -20,
     scale: 0.95
   }
@@ -122,6 +122,51 @@ export const staggerChildren = {
   },
   visible: {
     opacity: 1
+  }
+};
+
+export const balancePulse = {
+  pulse: {
+    scale: [1, 1.05, 1],
+    transition: {
+      duration: 0.3,
+      ease: "easeOut"
+    }
+  }
+};
+
+export const countUp = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      duration: 0.45,
+      ease: "easeOut"
+    }
+  }
+};
+
+export const slideUpMobile = {
+  hidden: {
+    y: "100%",
+    opacity: 0
+  },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      type: "spring",
+      damping: 30,
+      stiffness: 300
+    }
+  },
+  exit: {
+    y: "100%",
+    opacity: 0,
+    transition: {
+      duration: 0.3,
+      ease: "easeIn"
+    }
   }
 };
 

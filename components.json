@@ -16,5 +16,16 @@
     "ui": "@/components/ui",
     "lib": "@/lib",
     "hooks": "@/hooks"
+  },
+  "mcpServers": {
+    "TestSprite": {
+      "command": "npx",
+      "args": [
+        "@testsprite/testsprite-mcp@latest"
+      ],
+      "env": {
+        "API_KEY": "sk-user-VMsk-1LPmKSyuqknXqaN6ggXOLiBgitxSqX3aS6lSDjAtt4YGZCdkWnz1a_4qUyU8wowH5mUGcrHC98pGNcdEWIpMRUE-i5jbCDDMJvEb81czmy7rklSKn5rj69jaWM"
+      }
+    }
   }
 }

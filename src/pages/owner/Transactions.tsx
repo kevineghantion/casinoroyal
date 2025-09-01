@@ -60,8 +60,8 @@ export default function Transactions() {
       setLoading(true);
       const data = await transactionApi.getTransactions({ 
         search: searchQuery || undefined,
-        type: typeFilter || undefined,
-        status: statusFilter || undefined,
+        type: typeFilter === 'all' ? undefined : typeFilter || undefined,
+        status: statusFilter === 'all' ? undefined : statusFilter || undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         limit: 20,
@@ -106,8 +106,8 @@ export default function Transactions() {
     try {
       await transactionApi.exportTransactions({
         search: searchQuery || undefined,
-        type: typeFilter || undefined,
-        status: statusFilter || undefined,
+        type: typeFilter === 'all' ? undefined : typeFilter || undefined,
+        status: statusFilter === 'all' ? undefined : statusFilter || undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined
       });
@@ -232,7 +232,7 @@ export default function Transactions() {
       ),
     },
     {
-      key: 'id',
+      key: 'actions',
       header: 'Actions',
       render: (_, transaction) => (
         <DropdownMenu>
@@ -370,7 +370,7 @@ export default function Transactions() {
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Types</SelectItem>
+                <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="deposit">Deposit</SelectItem>
                 <SelectItem value="withdraw">Withdraw</SelectItem>
                 <SelectItem value="bet">Bet</SelectItem>
@@ -383,7 +383,7 @@ export default function Transactions() {
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
                 <SelectItem value="failed">Failed</SelectItem>

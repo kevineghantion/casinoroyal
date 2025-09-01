@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { validateAndSanitize } from './inputValidator';
+import { secureLog } from './logger';
 
 export interface RealKPIData {
   totalUsers: number;
@@ -24,7 +25,7 @@ export const supabaseAdmin = {
       const { data: balanceData } = await supabase
         .from('profiles')
         .select('balance');
-      
+
       const totalBalance = balanceData?.reduce((sum, profile) => sum + (profile.balance || 0), 0) || 0;
 
       // Get recent transactions for revenue calculation
@@ -164,9 +165,9 @@ export const supabaseAdmin = {
         data: { username, email }
       }
     });
-    
+
     if (error) throw error;
-    
+
     // Create profile manually since we removed the trigger
     if (data.user) {
       const { error: profileError } = await supabase
@@ -176,23 +177,30 @@ export const supabaseAdmin = {
           username: username.toLowerCase(),
           email: email.toLowerCase(),
           role: 'user',
-          balance: 1000,
+          balance: 0,
           total_winnings: 0,
           total_losses: 0,
           games_played: 0,
           status: 'active'
         });
-        
+
       if (profileError) {
-        console.error('Profile creation error:', profileError);
+        secureLog.error('Profile creation error', profileError);
         throw new Error(`Profile creation failed: ${profileError.message}`);
       }
     }
-    
+
     return data;
   },
 
   async adjustUserBalance(userId: string, amount: number, reason: string, adminId: string) {
+    // Validate inputs
+    if (!validateAndSanitize.uuid(userId) || !validateAndSanitize.uuid(adminId)) {
+      throw new Error('Invalid user ID format');
+    }
+
+    const sanitizedReason = validateAndSanitize.string(reason, 500);
+
     // Get current balance
     const { data: profile } = await supabase
       .from('profiles')
@@ -217,36 +225,47 @@ export const supabaseAdmin = {
 
     if (updateError) throw updateError;
 
-    // Create transaction record with full details
+    // Create transaction record with validation
+    const validatedUserId = validateAndSanitize.uuid(userId);
+    const validatedAdminId = validateAndSanitize.uuid(adminId);
+    
+    if (!validatedUserId || !validatedAdminId) {
+      throw new Error('Invalid UUID format for transaction');
+    }
+
     const { error: txError } = await supabase
       .from('transactions')
       .insert({
-        user_id: userId,
-        admin_id: adminId,
+        user_id: validatedUserId,
+        admin_id: validatedAdminId,
         type: 'adjustment',
         amount: Math.abs(amount),
         balance_before: balanceBefore,
         balance_after: balanceAfter,
-        description: reason,
+        description: sanitizedReason,
         status: 'completed'
       });
 
     if (txError) throw txError;
 
-    // Log admin action
-    await supabase
-      .from('admin_actions')
-      .insert({
-        admin_id: adminId,
-        target_user_id: userId,
-        action: 'balance_adjustment',
-        details: { 
-          amount, 
-          reason, 
-          balance_before: balanceBefore, 
-          balance_after: balanceAfter 
-        }
-      });
+    // Log admin action with error handling
+    try {
+      await supabase
+        .from('admin_actions')
+        .insert({
+          admin_id: validatedAdminId,
+          target_user_id: validatedUserId,
+          action: 'balance_adjustment',
+          details: {
+            amount,
+            reason: sanitizedReason,
+            balance_before: balanceBefore,
+            balance_after: balanceAfter
+          }
+        });
+    } catch (auditError) {
+      secureLog.error('Failed to log admin action', auditError instanceof Error ? auditError.message : 'Unknown error');
+    }
 
     return { newBalance: balanceAfter, username: profile.username };
   },
@@ -275,7 +294,7 @@ export const supabaseAdmin = {
     transactions?.forEach(tx => {
       let action = '';
       let type = '';
-      
+
       switch (tx.type) {
         case 'deposit':
           action = 'Deposit processed';
@@ -328,14 +347,14 @@ export const supabaseAdmin = {
     if (!validateAndSanitize.uuid(userId) || !validateAndSanitize.uuid(adminId)) {
       throw new Error('Invalid user ID format');
     }
-    
+
     const validStatuses = ['active', 'suspended', 'blocked'];
     if (!validStatuses.includes(status)) {
       throw new Error('Invalid status value');
     }
-    
+
     const sanitizedReason = validateAndSanitize.string(reason, 500);
-    
+
     const { error } = await supabase
       .from('profiles')
       .update({ status })
@@ -343,15 +362,20 @@ export const supabaseAdmin = {
 
     if (error) throw error;
 
-    // Log admin action
-    await supabase
-      .from('admin_actions')
-      .insert({
-        admin_id: adminId,
-        target_user_id: userId,
-        action: `status_change_${status}`,
-        details: { reason: sanitizedReason, new_status: status }
-      });
+    // Log admin action with validation
+    const validatedAdminId = validateAndSanitize.uuid(adminId);
+    const validatedUserId = validateAndSanitize.uuid(userId);
+    
+    if (validatedAdminId && validatedUserId) {
+      await supabase
+        .from('admin_actions')
+        .insert({
+          admin_id: validatedAdminId,
+          target_user_id: validatedUserId,
+          action: `status_change_${status}`,
+          details: { reason: sanitizedReason, new_status: status }
+        });
+    }
 
     return { success: true };
   },
@@ -361,14 +385,14 @@ export const supabaseAdmin = {
     if (!validateAndSanitize.uuid(userId) || !validateAndSanitize.uuid(adminId)) {
       throw new Error('Invalid user ID format');
     }
-    
+
     const validRoles = ['user', 'admin', 'owner'];
     if (!validRoles.includes(role)) {
       throw new Error('Invalid role value');
     }
-    
+
     const sanitizedReason = validateAndSanitize.string(reason, 500);
-    
+
     const { error } = await supabase
       .from('profiles')
       .update({ role })
@@ -376,15 +400,20 @@ export const supabaseAdmin = {
 
     if (error) throw error;
 
-    // Log admin action
-    await supabase
-      .from('admin_actions')
-      .insert({
-        admin_id: adminId,
-        target_user_id: userId,
-        action: 'role_change',
-        details: { reason: sanitizedReason, new_role: role }
-      });
+    // Log admin action with validation
+    const validatedAdminId = validateAndSanitize.uuid(adminId);
+    const validatedUserId = validateAndSanitize.uuid(userId);
+    
+    if (validatedAdminId && validatedUserId) {
+      await supabase
+        .from('admin_actions')
+        .insert({
+          admin_id: validatedAdminId,
+          target_user_id: validatedUserId,
+          action: 'role_change',
+          details: { reason: sanitizedReason, new_role: role }
+        });
+    }
 
     return { success: true };
   },
@@ -394,18 +423,23 @@ export const supabaseAdmin = {
     if (!validateAndSanitize.uuid(userId) || !validateAndSanitize.uuid(adminId)) {
       throw new Error('Invalid user ID format');
     }
-    
+
     const sanitizedReason = validateAndSanitize.string(reason, 500);
+
+    // Log admin action before deletion with validation
+    const validatedAdminId = validateAndSanitize.uuid(adminId);
+    const validatedUserId = validateAndSanitize.uuid(userId);
     
-    // Log admin action before deletion
-    await supabase
-      .from('admin_actions')
-      .insert({
-        admin_id: adminId,
-        target_user_id: userId,
-        action: 'user_delete',
-        details: { reason: sanitizedReason }
-      });
+    if (validatedAdminId && validatedUserId) {
+      await supabase
+        .from('admin_actions')
+        .insert({
+          admin_id: validatedAdminId,
+          target_user_id: validatedUserId,
+          action: 'user_delete',
+          details: { reason: sanitizedReason }
+        });
+    }
 
     // Delete from auth.users (will cascade to profiles)
     const { error } = await supabase.auth.admin.deleteUser(userId);
@@ -416,11 +450,11 @@ export const supabaseAdmin = {
 
   formatTimeAgo(timestamp: string | null) {
     if (!timestamp) return 'Never';
-    
+
     const now = new Date();
     const time = new Date(timestamp);
     const diffInMinutes = Math.floor((now.getTime() - time.getTime()) / (1000 * 60));
-    
+
     if (diffInMinutes < 1) return 'Just now';
     if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
     if (diffInMinutes < 1440) {
@@ -431,7 +465,7 @@ export const supabaseAdmin = {
       const days = Math.floor(diffInMinutes / 1440);
       return `${days} day${days > 1 ? 's' : ''} ago`;
     }
-    
+
     // For older dates, show formatted date
     return time.toLocaleDateString('en-US', {
       month: 'short',

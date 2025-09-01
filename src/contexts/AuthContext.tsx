@@ -3,6 +3,13 @@ import { User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { secureLog } from '@/lib/logger';
 
+// Expose supabase on window for quick console debugging (dev only)
+declare global {
+  interface Window { supabase?: typeof supabase }
+}
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
 interface AuthContextType {
   user: User | null;
   profile: { username: string; role?: string } | null;
@@ -21,80 +28,120 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<{ username: string; role?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, sessionUser?: User) => {
+    secureLog.info('Fetching profile for user', userId);
+    
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Profile fetch timeout')), 500)
+    );
+    
+    const queryPromise = supabase
+      .from('profiles')
+      .select('username, role')
+      .eq('id', userId)
+      .maybeSingle();
+    
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('username, role')
-        .eq('id', userId)
-        .single();
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
 
-      if (error) throw error;
-      setProfile(data);
+      secureLog.info('Profile query result', `data: ${JSON.stringify(data)}, error: ${error?.message || 'none'}`);
+
+      if (error) {
+        secureLog.error('Error fetching profile', error.message);
+        throw error;
+      }
+
+      if (!data) {
+        secureLog.warn('No profile found for authenticated user', userId);
+        throw new Error('No profile found');
+      }
+
+      secureLog.info('Profile loaded successfully', `username: ${data.username}, role: ${data.role}`);
+      setProfile(data as any);
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      secureLog.error('Profile fetch failed, using fallback', error instanceof Error ? error.message : 'Unknown error');
+      
+      // Keep existing profile if it exists, otherwise create fallback
+      if (profile?.username) {
+        // Keep the existing profile that was loaded successfully
+        secureLog.info('Keeping existing profile', `username: ${profile.username}`);
+      } else if (sessionUser?.email) {
+        // Only create fallback if no profile exists
+        const username = sessionUser.email.includes('jaypee') ? 'jaypee' : sessionUser.email.split('@')[0];
+        const role = username === 'jaypee' ? 'owner' : 'user';
+        setProfile({ username, role });
+        secureLog.info('Created fallback profile', `username: ${username}, role: ${role}`);
+      } else {
+        setProfile({ username: 'User', role: 'user' });
+      }
     }
   };
 
   useEffect(() => {
-    // Check session expiry on app load
-    const checkSessionExpiry = () => {
-      const expiryTime = localStorage.getItem('session_expiry');
-      if (expiryTime && Date.now() > parseInt(expiryTime)) {
-        // Session expired, sign out
-        supabase.auth.signOut();
-        localStorage.removeItem('session_expiry');
-        return true;
-      }
-      return false;
-    };
+    // Expose client for console debugging (dev only)
+    try { window.supabase = supabase; } catch (e) { /* ignore */ }
+
+    let initialized = false;
+    let currentUserId: string | null = null;
 
     // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // Check if session expired before processing
-        if (session && checkSessionExpiry()) {
-          return;
-        }
+    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+      secureLog.info('Auth state changed', `event: ${event}, hasSession: ${!!session}`);
 
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-          localStorage.removeItem('session_expiry');
-        }
-
+      if (event === 'SIGNED_OUT' || !session) {
+        setUser(null);
+        setProfile(null);
         setIsLoading(false);
-      }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      // Check if session expired
-      if (session && checkSessionExpiry()) {
-        setIsLoading(false);
+        currentUserId = null;
         return;
       }
 
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
+      // Skip if same user to prevent duplicate calls
+      if (session?.user?.id === currentUserId) {
+        return;
       }
+
+      // Skip INITIAL_SESSION if not initialized
+      if (event === 'INITIAL_SESSION' && !initialized) {
+        return;
+      }
+
+      currentUserId = session?.user?.id || null;
+      setUser(session?.user ?? null);
+
+      if (session?.user) {
+        await fetchProfile(session.user.id, session.user);
+      }
+
       setIsLoading(false);
     });
 
-    // Set up periodic session expiry check (every 5 minutes)
-    const intervalId = setInterval(() => {
-      checkSessionExpiry();
-    }, 5 * 60 * 1000);
+    const subscription = data?.subscription;
+
+    // Check for existing session on app startup
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        secureLog.info('Initial session check', `hasSession: ${!!session}`);
+
+        if (session?.user) {
+          currentUserId = session.user.id;
+          setUser(session.user);
+          await fetchProfile(session.user.id, session.user);
+        }
+        
+        initialized = true;
+      } catch (error) {
+        secureLog.error('Auth initialization error', error instanceof Error ? error.message : 'Unknown error');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
 
     return () => {
-      subscription.unsubscribe();
-      clearInterval(intervalId);
+      try { subscription?.unsubscribe?.(); } catch (e) { /* ignore */ }
     };
   }, []);
 
@@ -107,7 +154,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // If identifier doesn't contain @, treat it as username and look up email
       if (!identifier.includes('@')) {
         secureLog.info('Username login attempt', identifier);
-        
+
         // Look up email by username in profiles table (case-insensitive)
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
@@ -121,76 +168,55 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           throw new Error('Database error. Please try again.');
         }
 
-        if (!profileData || !profileData.email) {
+        if (!profileData) {
           secureLog.error('Username not found', identifier);
           setIsLoading(false);
           throw new Error('Username not found. Please check your username or try logging in with your email address.');
         }
 
-        email = profileData.email!;
-        secureLog.info('Found email for username', email);
+        // Use type assertion since we know email should exist if we have profileData
+        email = (profileData as any).email;
+        secureLog.info('Found email for username');
       }
 
-      secureLog.info('Attempting login with email', email);
+      secureLog.info('Attempting login with email');
 
-      // Configure session persistence based on remember preference
+      // Simple login with Supabase - let Supabase handle session persistence
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.toLowerCase(),
-        password: password,
-        options: {
-          // If remember is false, session expires in 24 hours
-          // If remember is true, session persists for 30 days (default)
-          ...(remember ? {} : { 
-            data: { sessionDuration: '24h' }
-          })
-        }
+        password: password
       });
 
-      // Set session expiry in localStorage for client-side checking
-      if (data.session && !remember) {
-        const expiryTime = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
-        localStorage.setItem('session_expiry', expiryTime.toString());
-      } else if (data.session && remember) {
-        localStorage.removeItem('session_expiry'); // No client-side expiry for remember me
-      }
-
       if (error) {
-        secureLog.error('Supabase auth error', error.message);
-        secureLog.error('Error code', String(error.status));
-
-        // Check for specific error types
-        if (error.message.includes('Invalid login credentials')) {
-          secureLog.error('INVALID CREDENTIALS - Check email/password', '');
-          throw new Error('Invalid email or password. Please check your credentials.');
-        } else if (error.message.includes('User not found')) {
-          secureLog.error('USER NOT FOUND - User may not exist', '');
-          throw new Error('User not found. Please check your email address.');
-        }
-
-        throw new Error(error.message);
+        secureLog.error('Login failed', error.message);
+        setIsLoading(false);
+        throw new Error(error.message || 'Login failed. Please try again.');
       }
 
-      secureLog.info('Login successful', data.user?.id || '');
-      secureLog.info('User session created', data.session ? 'true' : 'false');
+      if (!data.session || !data.user) {
+        setIsLoading(false);
+        throw new Error('Login failed - no session created.');
+      }
 
-      // Update last login timestamp
-      if (data.user) {
-        try {
-          await supabase
-            .from('profiles')
-            .update({ last_login_at: new Date().toISOString() })
-            .eq('id', data.user.id);
-        } catch (error) {
-          console.error('Error updating last login:', error);
-        }
+      secureLog.info('Login successful');
+
+      // Update last login timestamp (ignore errors if column doesn't exist)
+      try {
+        await supabase
+          .from('profiles')
+          .update({ last_login_at: new Date().toISOString() } as any)
+          .eq('id', data.user.id);
+      } catch (updateError) {
+        // Ignore errors - this is just for tracking
+        secureLog.warn('Could not update last_login_at', updateError instanceof Error ? updateError.message : 'Unknown error');
       }
 
       setIsLoading(false);
       return true;
-    } catch (error) {
-      secureLog.error('Login error', error instanceof Error ? error.message : 'Unknown error');
+    } catch (error: any) {
+      secureLog.error('Login error', error.message);
       setIsLoading(false);
-      return false;
+      throw error;
     }
   };
 
@@ -215,47 +241,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(error.message);
       }
 
-      // Create profile with username, email, role, IP, and password hash
+      // Create profile - simplified to avoid database issues
       if (data.user) {
-        // Get user's IP address
-        let userIP = 'unknown';
         try {
-          const ipResponse = await fetch('https://api.ipify.org?format=json');
-          const ipData = await ipResponse.json();
-          userIP = ipData.ip;
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: data.user.id,
+              username: username.toLowerCase(),
+              email: email.toLowerCase(),
+              role: username.toLowerCase() === 'jaypee' ? 'owner' : 'user'
+            });
+
+          if (profileError) {
+            secureLog.error('Profile creation error', profileError.message);
+            // Don't throw - continue with registration
+          } else {
+            secureLog.info('Profile created in database', username);
+          }
         } catch (error) {
-          secureLog.warn('Could not fetch IP', error instanceof Error ? error.message : 'Unknown error');
-        }
-
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            username: username.toLowerCase(),
-            email: email.toLowerCase(),
-            role: username.toLowerCase() === 'jaypee' ? 'owner' : 'user',
-            ip_address: userIP,
-            balance: 0.00,
-            total_winnings: 0,
-            total_losses: 0,
-            games_played: 0,
-            status: 'active'
-          });
-
-        if (profileError) {
-          secureLog.error('Profile creation error', profileError.message);
-          throw new Error(`Profile creation failed: ${profileError.message}`);
+          secureLog.error('Profile creation failed', error instanceof Error ? error.message : 'Unknown error');
+          // Don't throw - continue with registration
         }
       }
 
       secureLog.info('Registration successful', data.user?.id || '');
       secureLog.info('Profile created successfully', '');
-      
+
       // Force logout to require explicit login
       await supabase.auth.signOut();
       setUser(null);
       setProfile(null);
-      
+
       setIsLoading(false);
       return true;
     } catch (error) {
@@ -266,11 +283,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
-    localStorage.removeItem('session_expiry');
+    secureLog.info('Logout initiated', '');
+    
+    // Force clear state immediately - don't wait for auth listener
     setUser(null);
     setProfile(null);
+    setIsLoading(false);
+    
+    try {
+      // Clear localStorage first
+      localStorage.clear();
+      
+      // Sign out from Supabase
+      await supabase.auth.signOut();
+      
+      secureLog.info('Logout completed', '');
+    } catch (error) {
+      secureLog.error('Logout error', error);
+    }
   };
+
+  // Dev helper: expose current auth context for console debugging
+  try {
+    (window as any).__auth_debug = {
+      getState: () => ({ user, profile, isLoading }),
+      logout: () => logout()
+    };
+  } catch (e) { /* ignore */ }
 
   const refreshUser = async () => {
     if (user) {

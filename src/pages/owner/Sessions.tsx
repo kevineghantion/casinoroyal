@@ -1,19 +1,23 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Gamepad2,
+import {
+  Monitor,
   Users,
-  Play,
-  Square,
+  Clock,
+  Smartphone,
   MoreHorizontal,
   Eye,
   StopCircle,
   AlertTriangle,
-  Activity
+  Activity,
+  Globe,
+  Calendar
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,19 +27,24 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { DataTable, type Column } from '@/components/admin/DataTable';
 import { ConfirmModal } from '@/components/admin/ConfirmModal';
-import { adminApi, type GameSession } from '@/lib/adminApi';
+import { sessionApi, type UserSession } from '@/lib/sessionApi';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Sessions() {
-  const [sessions, setSessions] = useState<GameSession[]>([]);
+  const [sessions, setSessions] = useState<UserSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeOnly, setActiveOnly] = useState(true);
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [deviceFilter, setDeviceFilter] = useState<string>('');
+  const [totalSessions, setTotalSessions] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
   const [confirmModal, setConfirmModal] = useState<{
     open: boolean;
     type: 'terminate';
-    session?: GameSession;
+    session?: UserSession;
   }>({ open: false, type: 'terminate' });
-  
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -45,12 +54,12 @@ export default function Sessions() {
   const fetchSessions = async () => {
     try {
       setLoading(true);
-      const data = await adminApi.getSessions(activeOnly);
-      setSessions(data.sessions);
+      const data = await sessionApi.getSessions(activeOnly);
+      setSessions(data);
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to load game sessions",
+        description: "Failed to load sessions",
         variant: "destructive",
       });
     } finally {
@@ -58,14 +67,14 @@ export default function Sessions() {
     }
   };
 
-  const handleSessionAction = async (type: string, session: GameSession, data?: any) => {
+  const handleSessionAction = async (type: string, session: UserSession, data?: any) => {
     try {
       switch (type) {
         case 'terminate':
-          await adminApi.terminateSession(session.id, data.reason);
+          await sessionApi.terminateSession(session.id, data.reason);
           toast({
             title: "Success",
-            description: `Session ${session.id} has been terminated`,
+            description: `Session has been terminated`,
           });
           break;
       }
@@ -73,116 +82,109 @@ export default function Sessions() {
     } catch (error) {
       toast({
         title: "Error",
-        description: `Failed to perform action on session ${session.id}`,
+        description: `Failed to perform action on session`,
         variant: "destructive",
       });
     }
     setConfirmModal({ open: false, type: 'terminate' });
   };
 
-  const getGameIcon = (gameType: GameSession['gameType']) => {
-    return Gamepad2; // Could expand with specific game icons
+  const getDeviceIcon = (device: string) => {
+    if (device?.toLowerCase().includes('mobile')) return Smartphone;
+    return Monitor;
   };
 
-  const getGameColor = (gameType: GameSession['gameType']) => {
-    switch (gameType) {
-      case 'rocket': return 'text-red-500';
-      case 'blackjack': return 'text-yellow-500';
-      case 'poker': return 'text-blue-500';
-      case 'slots': return 'text-purple-500';
-      default: return 'text-muted-foreground';
+  const getStatusBadgeVariant = (isActive: boolean) => {
+    return isActive ? 'default' : 'secondary';
+  };
+
+  const formatTimeAgo = (timestamp: string) => {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffInMinutes = Math.floor((now.getTime() - time.getTime()) / (1000 * 60));
+
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
+    return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
+
+  const getSessionActivityType = (session: UserSession) => {
+    const now = new Date();
+    const lastActivity = new Date(session.last_activity);
+    const createdAt = new Date(session.created_at);
+    const diffInMinutes = Math.floor((now.getTime() - lastActivity.getTime()) / (1000 * 60));
+    const sessionAge = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60));
+
+    // Determine activity type based on session data
+    if (sessionAge < 5) {
+      return { event: 'User logged in', type: 'login' };
+    } else if (diffInMinutes < 5) {
+      return { event: 'Recent activity detected', type: 'activity' };
+    } else if (!session.is_active) {
+      return { event: 'Session ended', type: 'logout' };
+    } else if (diffInMinutes > 30) {
+      return { event: 'Session idle', type: 'idle' };
+    } else {
+      return { event: 'Active session', type: 'active' };
     }
   };
 
-  const getStatusBadgeVariant = (status: GameSession['status']) => {
-    switch (status) {
-      case 'active': return 'default';
-      case 'completed': return 'secondary';
-      case 'terminated': return 'destructive';
-      default: return 'outline';
-    }
-  };
-
-  const columns: Column<GameSession>[] = [
+  const columns: Column<UserSession>[] = [
     {
-      key: 'id',
-      header: 'Session ID',
-      render: (id) => (
-        <span className="font-mono text-sm">{id}</span>
+      key: 'user_email',
+      header: 'User',
+      render: (email) => (
+        <span className="font-medium">{email}</span>
       ),
     },
     {
-      key: 'gameType',
-      header: 'Game',
+      key: 'device_info',
+      header: 'Device',
       sortable: true,
-      render: (gameType) => {
-        const Icon = getGameIcon(gameType);
-        const color = getGameColor(gameType);
+      render: (device) => {
+        const Icon = getDeviceIcon(device || '');
         return (
           <div className="flex items-center gap-2">
-            <Icon className={`h-4 w-4 ${color}`} />
-            <span className={`capitalize ${color} font-medium`}>{gameType}</span>
+            <Icon className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm">{device || 'Unknown'}</span>
           </div>
         );
       },
     },
     {
-      key: 'playersCount',
-      header: 'Players',
-      sortable: true,
-      render: (count) => (
-        <div className="flex items-center gap-1">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">{count}</span>
-        </div>
+      key: 'ip_address',
+      header: 'IP Address',
+      render: (ip) => (
+        <span className="font-mono text-sm">{ip}</span>
       ),
     },
     {
-      key: 'totalBet',
-      header: 'Total Bet',
-      sortable: true,
-      render: (amount) => (
-        <span className="font-mono text-orange-500">
-          ${amount.toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      key: 'totalPayout',
-      header: 'Total Payout',
-      sortable: true,
-      render: (amount) => (
-        <span className="font-mono text-green-500">
-          ${amount.toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      key: 'status',
+      key: 'is_active',
       header: 'Status',
       sortable: true,
-      render: (status) => (
-        <Badge variant={getStatusBadgeVariant(status)}>
-          {status === 'active' && <Activity className="h-3 w-3 mr-1 animate-pulse" />}
-          {status}
+      render: (isActive) => (
+        <Badge variant={getStatusBadgeVariant(isActive)}>
+          {isActive && <Activity className="h-3 w-3 mr-1 animate-pulse" />}
+          {isActive ? 'Active' : 'Inactive'}
         </Badge>
       ),
     },
     {
-      key: 'startedAt',
+      key: 'created_at',
       header: 'Started',
       sortable: true,
-      render: (startedAt) => (
+      render: (createdAt) => (
         <div className="text-sm">
-          <div>{new Date(startedAt).toLocaleDateString()}</div>
+          <div>{new Date(createdAt).toLocaleDateString()}</div>
           <div className="text-muted-foreground">
-            {new Date(startedAt).toLocaleTimeString()}
+            {new Date(createdAt).toLocaleTimeString()}
           </div>
         </div>
       ),
     },
     {
-      key: 'id',
+      key: 'actions' as keyof UserSession,
       header: 'Actions',
       render: (_, session) => (
         <DropdownMenu>
@@ -196,18 +198,14 @@ export default function Sessions() {
               <Eye className="h-4 w-4 mr-2" />
               View Details
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Activity className="h-4 w-4 mr-2" />
-              Live Console
-            </DropdownMenuItem>
-            {session.status === 'active' && (
+            {session.is_active && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={() => setConfirmModal({ 
-                    open: true, 
-                    type: 'terminate', 
-                    session 
+                <DropdownMenuItem
+                  onClick={() => setConfirmModal({
+                    open: true,
+                    type: 'terminate',
+                    session
                   })}
                   className="text-destructive"
                 >
@@ -252,15 +250,15 @@ export default function Sessions() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-neon-glow">
-            Game Sessions
+            User Sessions
           </h1>
           <p className="text-muted-foreground">
-            Monitor and manage active game sessions
+            Monitor and manage user authentication sessions
           </p>
         </div>
-        
+
         <div className="flex gap-2">
-          <Button 
+          <Button
             variant={activeOnly ? "default" : "outline"}
             onClick={() => setActiveOnly(!activeOnly)}
             className={activeOnly ? "btn-neon-primary" : ""}
@@ -283,7 +281,7 @@ export default function Sessions() {
               <CardContent className="p-4">
                 <div className="text-sm text-muted-foreground">{stat.title}</div>
                 <div className={`text-2xl font-bold ${stat.color}`}>
-                  {stat.prefix}{stat.value.toLocaleString()}
+                  {stat.value.toLocaleString()}
                 </div>
               </CardContent>
             </Card>
@@ -303,7 +301,7 @@ export default function Sessions() {
                 <SelectValue placeholder="All Devices" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Devices</SelectItem>
+                <SelectItem value="all">All Devices</SelectItem>
                 <SelectItem value="mobile">Mobile</SelectItem>
                 <SelectItem value="desktop">Desktop</SelectItem>
               </SelectContent>
@@ -322,7 +320,7 @@ export default function Sessions() {
               onChange={(e) => setDateTo(e.target.value)}
               className="input-neon"
             />
-            <Button 
+            <Button
               variant="outline"
               onClick={() => {
                 setDateFrom('');
@@ -344,9 +342,9 @@ export default function Sessions() {
             {activeOnly ? 'Active Sessions' : 'All Sessions'}
           </CardTitle>
           <CardDescription>
-            {activeOnly 
-              ? 'Currently running game sessions that can be monitored and managed'
-              : 'Complete history of game sessions including completed and terminated ones'
+            {activeOnly
+              ? 'Currently active user sessions that can be monitored and managed'
+              : 'Complete history of user sessions including active and expired ones'
             }
           </CardDescription>
         </CardHeader>
@@ -364,44 +362,63 @@ export default function Sessions() {
         </CardContent>
       </Card>
 
-      {/* Real-time Session Monitor */}
+      {/* Real-time Session Activity */}
       {activeOnly && (
         <Card className="card-neon">
           <CardHeader>
-            <CardTitle className="text-electric-glow">Live Session Monitor</CardTitle>
+            <CardTitle className="text-electric-glow">Live Session Activity</CardTitle>
             <CardDescription>
-              Real-time updates from active game sessions
+              Real-time updates from user authentication sessions
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {[
-                { session: 'rocket_123', event: 'New player joined', player: 'player456', time: '2s ago' },
-                { session: 'blackjack_456', event: 'Round completed', player: 'system', time: '5s ago' },
-                { session: 'poker_789', event: 'Big win occurred', player: 'player789', time: '8s ago' },
-                { session: 'slots_321', event: 'Jackpot triggered', player: 'player123', time: '12s ago' },
-              ].map((activity, index) => (
-                <motion.div
-                  key={index}
-                  className="flex items-center justify-between p-3 rounded-lg bg-secondary/30"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                    <div>
-                      <div className="font-medium">{activity.event}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {activity.session} • {activity.player}
+              {sessions.slice(0, 6).map((session, index) => {
+                const timeAgo = formatTimeAgo(session.last_activity);
+                const isRecentActivity = new Date(session.last_activity) > new Date(Date.now() - 10 * 60 * 1000); // 10 min
+                const activityType = getSessionActivityType(session);
+
+                return (
+                  <motion.div
+                    key={session.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-secondary/30"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${isRecentActivity
+                          ? 'bg-green-500 animate-pulse'
+                          : session.is_active
+                            ? 'bg-primary'
+                            : 'bg-gray-500'
+                        }`}></div>
+                      <div>
+                        <div className="font-medium">{activityType.event}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {session.user_email} • {session.device_info || 'Unknown device'}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {activity.time}
-                  </div>
-                </motion.div>
-              ))}
+                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                      <span>{timeAgo}</span>
+                      {session.is_active && (
+                        <Badge variant="outline" className="text-xs">
+                          Active
+                        </Badge>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
+
+              {sessions.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No active sessions to monitor</p>
+                  <p className="text-sm">Sessions will appear here when users login</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

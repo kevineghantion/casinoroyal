@@ -11,7 +11,7 @@ export const sanitizeForLog = (input: any): string => {
     .substring(0, 200); // Limit length
 };
 
-export const secureLog = {
+export const logger = {
   info: (message: string, data?: any) => {
     console.log(sanitizeForLog(message), data ? sanitizeForLog(data) : '');
   },
@@ -22,3 +22,5 @@ export const secureLog = {
     console.warn(sanitizeForLog(message), data ? sanitizeForLog(data) : '');
   }
 };
+
+export const secureLog = logger;

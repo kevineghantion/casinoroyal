@@ -239,7 +239,7 @@ export default function Users() {
       sortable: true,
       render: (balance) => (
         <span className="font-mono text-neon-green">
-          ${balance.toLocaleString()}
+          ${Number(balance || 0).toFixed(2)}
         </span>
       ),
     },

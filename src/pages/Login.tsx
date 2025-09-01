@@ -1,14 +1,7 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { NeonButton } from '@/components/ui/NeonButton';
 import { useAuth } from '@/hooks/useAuth';
-import { useSFX } from '@/hooks/useSFX';
-import { pageTransition, bounceIn } from '@/lib/animations';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-
 
 const Login = () => {
   const [identifier, setIdentifier] = useState('');
@@ -19,109 +12,39 @@ const Login = () => {
 
   const navigate = useNavigate();
   const { login } = useAuth();
-  const { playClick } = useSFX();
-  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!identifier.trim() || !password.trim()) {
-      toast({
-        title: "Missing fields",
-        description: "Please fill in all fields",
-        variant: "destructive",
-      });
+      alert('Please fill in all fields');
       return;
     }
 
-    playClick();
+    setIsLoading(true);
 
     try {
-      const success = await login(identifier, password, remember);
-
-      if (success) {
-        toast({
-          title: "Welcome back!",
-          description: "Login successful",
-        });
-        navigate('/');
-      } else {
-        toast({
-          title: "Login Failed",
-          description: "Please check your credentials and try again",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      await login(identifier, password, remember);
+      navigate('/');
+    } catch (error: any) {
       console.error('Login error:', error);
-      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
-      toast({
-        title: "Login Failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      alert(error.message || 'Login failed');
+    } finally {
+      setIsLoading(false);
     }
   };
 
 
 
   return (
-    <motion.div
-      className="min-h-screen bg-gradient-casino flex items-center justify-center px-4"
-      variants={pageTransition}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-    >
-      <div className="absolute inset-0 overflow-hidden">
-        {/* Animated background elements */}
-        {[...Array(8)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-2 h-2 bg-neon-pink rounded-full opacity-30"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`
-            }}
-            animate={{
-              scale: [1, 2, 1],
-              opacity: [0.3, 0.8, 0.3]
-            }}
-            transition={{
-              duration: 3 + i,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-          />
-        ))}
-      </div>
-
-      <motion.div
-        className="relative z-10 w-full max-w-md"
-        variants={bounceIn}
-        initial="hidden"
-        animate="visible"
-      >
+    <div className="min-h-screen bg-gradient-casino flex items-center justify-center px-4">
+      <div className="relative z-10 w-full max-w-md">
         <div className="bg-bg-card/90 backdrop-blur-lg border border-neon-gray-dark rounded-2xl p-8 shadow-glow">
           {/* Header */}
           <div className="text-center mb-8">
-            <motion.h1
-              className="text-3xl font-bold bg-gradient-neon bg-clip-text text-transparent mb-2"
-              animate={{
-                filter: [
-                  "drop-shadow(0 0 20px rgba(255, 45, 203, 0.5))",
-                  "drop-shadow(0 0 30px rgba(255, 45, 203, 0.8))",
-                  "drop-shadow(0 0 20px rgba(255, 45, 203, 0.5))"
-                ]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-            >
+            <h1 className="text-3xl font-bold bg-gradient-neon bg-clip-text text-transparent mb-2">
               Welcome Back
-            </motion.h1>
+            </h1>
             <p className="text-neon-gray">Sign in to continue your gaming journey</p>
           </div>
 
@@ -160,26 +83,13 @@ const Login = () => {
                   placeholder="Enter your password"
                   required
                 />
-                <motion.button
+                <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-0 top-0 bottom-0 w-12 flex items-center justify-center text-neon-gray hover:text-neon-white transition-colors"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.95 }}
-                  animate={{
-                    rotate: showPassword ? [0, -10, 10, 0] : 0
-                  }}
-                  transition={{ duration: 0.3 }}
                 >
-                  <motion.div
-                    animate={{
-                      opacity: showPassword ? [1, 0.5, 1] : 1
-                    }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </motion.div>
-                </motion.button>
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
@@ -209,28 +119,19 @@ const Login = () => {
 
           </form>
 
-          {/* Getting Started */}
-          <div className="mt-6 p-4 bg-bg-darker/50 rounded-lg border border-neon-gray-dark">
-            <p className="text-sm text-neon-gray mb-2">New to Casino Royal?</p>
-            <p className="text-xs text-neon-gray">
-              Create your account to access all our games!
-            </p>
-          </div>
-
           {/* Register Link */}
           <div className="mt-8 text-center">
             <span className="text-neon-gray">Don't have an account? </span>
             <Link
               to="/register"
               className="text-electric-blue hover:text-neon-white underline transition-colors"
-              onClick={playClick}
             >
               Sign up now
             </Link>
           </div>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 
