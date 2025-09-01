@@ -222,7 +222,7 @@ export default function Sessions() {
     },
   ];
 
-  const activeSessions = sessions.filter(s => s.status === 'active');
+  const activeSessions = sessions.filter(s => s.is_active);
   const summaryStats = [
     {
       title: 'Active Sessions',
@@ -230,21 +230,19 @@ export default function Sessions() {
       color: 'text-primary',
     },
     {
-      title: 'Total Players',
-      value: activeSessions.reduce((sum, s) => sum + s.playersCount, 0),
+      title: 'Total Users',
+      value: sessions.length,
       color: 'text-neon-blue',
     },
     {
-      title: 'Active Bets',
-      value: activeSessions.reduce((sum, s) => sum + s.totalBet, 0),
+      title: 'Mobile Sessions',
+      value: sessions.filter(s => s.device_info?.toLowerCase().includes('mobile')).length,
       color: 'text-orange-500',
-      prefix: '$',
     },
     {
-      title: 'Potential Payouts',
-      value: activeSessions.reduce((sum, s) => sum + s.totalPayout, 0),
+      title: 'Desktop Sessions',
+      value: sessions.filter(s => !s.device_info?.toLowerCase().includes('mobile')).length,
       color: 'text-green-500',
-      prefix: '$',
     },
   ];
 
@@ -293,42 +291,51 @@ export default function Sessions() {
         ))}
       </div>
 
-      {/* Game Types Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {['rocket', 'blackjack', 'poker', 'slots'].map((gameType, index) => {
-          const gameActiveSessions = activeSessions.filter(s => s.gameType === gameType);
-          const totalPlayers = gameActiveSessions.reduce((sum, s) => sum + s.playersCount, 0);
-          const color = getGameColor(gameType as GameSession['gameType']);
-          
-          return (
-            <motion.div
-              key={gameType}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: index * 0.1 + 0.3 }}
+      {/* Filters */}
+      <Card className="card-neon">
+        <CardHeader>
+          <CardTitle className="text-electric-glow">Filters</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Select value={deviceFilter} onValueChange={setDeviceFilter}>
+              <SelectTrigger className="select-neon">
+                <SelectValue placeholder="All Devices" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Devices</SelectItem>
+                <SelectItem value="mobile">Mobile</SelectItem>
+                <SelectItem value="desktop">Desktop</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              type="date"
+              placeholder="From Date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="input-neon"
+            />
+            <Input
+              type="date"
+              placeholder="To Date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="input-neon"
+            />
+            <Button 
+              variant="outline"
+              onClick={() => {
+                setDateFrom('');
+                setDateTo('');
+                setDeviceFilter('');
+              }}
+              className="btn-ghost-neon"
             >
-              <Card className="card-neon">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm text-muted-foreground capitalize">
-                        {gameType}
-                      </div>
-                      <div className={`text-xl font-bold ${color}`}>
-                        {gameActiveSessions.length} sessions
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {totalPlayers} players
-                      </div>
-                    </div>
-                    <Gamepad2 className={`h-8 w-8 ${color}`} />
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          );
-        })}
-      </div>
+              Clear Filters
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Sessions Table */}
       <Card className="card-neon">
@@ -348,7 +355,11 @@ export default function Sessions() {
             data={sessions}
             columns={columns}
             loading={loading}
-            onExport={() => toast({ title: "Export", description: "CSV export would start" })}
+            pagination={{
+              currentPage,
+              totalPages: Math.ceil(totalSessions / 20),
+              onPageChange: setCurrentPage
+            }}
           />
         </CardContent>
       </Card>
@@ -405,8 +416,8 @@ export default function Sessions() {
             handleSessionAction(confirmModal.type, confirmModal.session, data);
           }
         }}
-        title="Terminate Game Session"
-        description={`Terminate session ${confirmModal.session?.id}. All active players will be safely logged out and pending bets will be resolved.`}
+        title="Terminate User Session"
+        description={`Terminate session for ${confirmModal.session?.user_email}. The user will be logged out from all devices immediately.`}
         variant="destructive"
         requireConfirmText={true}
         confirmText="TERMINATE"

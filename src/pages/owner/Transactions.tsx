@@ -9,11 +9,15 @@ import {
   ArrowDownRight,
   Undo,
   Eye,
-  AlertTriangle
+  AlertTriangle,
+  Calendar,
+  DollarSign
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,14 +27,22 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { DataTable, type Column } from '@/components/admin/DataTable';
 import { ConfirmModal } from '@/components/admin/ConfirmModal';
-import { adminApi, type Transaction } from '@/lib/adminApi';
+import { TransactionDetailsModal } from '@/components/admin/TransactionDetailsModal';
+import { transactionApi, type Transaction } from '@/lib/transactionApi';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [totalTransactions, setTotalTransactions] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{
     open: boolean;
     type: 'reverse' | 'flag';
@@ -41,12 +53,20 @@ export default function Transactions() {
 
   useEffect(() => {
     fetchTransactions();
-  }, [searchQuery]);
+  }, [searchQuery, typeFilter, statusFilter, dateFrom, dateTo, currentPage]);
 
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      const data = await adminApi.getTransactions({ query: searchQuery });
+      const data = await transactionApi.getTransactions({ 
+        search: searchQuery || undefined,
+        type: typeFilter || undefined,
+        status: statusFilter || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+        limit: 20,
+        offset: currentPage * 20
+      });
       setTransactions(data.transactions);
       setTotalTransactions(data.total);
     } catch (error) {
@@ -64,7 +84,7 @@ export default function Transactions() {
     try {
       switch (type) {
         case 'reverse':
-          await adminApi.reverseTransaction(transaction.id, data.reason);
+          await transactionApi.reverseTransaction(transaction.id, data.reason);
           toast({
             title: "Success",
             description: `Transaction ${transaction.id} has been reversed`,
@@ -80,6 +100,28 @@ export default function Transactions() {
       });
     }
     setConfirmModal({ open: false, type: 'reverse' });
+  };
+
+  const handleExport = async () => {
+    try {
+      await transactionApi.exportTransactions({
+        search: searchQuery || undefined,
+        type: typeFilter || undefined,
+        status: statusFilter || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined
+      });
+      toast({
+        title: "Success",
+        description: "Transaction data exported successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to export transaction data",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusBadgeVariant = (status: Transaction['status']) => {
@@ -125,9 +167,12 @@ export default function Transactions() {
       ),
     },
     {
-      key: 'user',
+      key: 'user_email',
       header: 'User',
       sortable: true,
+      render: (email) => (
+        <span className="text-sm">{email}</span>
+      ),
     },
     {
       key: 'type',
@@ -165,7 +210,7 @@ export default function Transactions() {
       ),
     },
     {
-      key: 'gameType',
+      key: 'game_type',
       header: 'Game',
       render: (gameType) => gameType ? (
         <span className="capitalize text-sm">{gameType}</span>
@@ -174,7 +219,7 @@ export default function Transactions() {
       ),
     },
     {
-      key: 'timestamp',
+      key: 'created_at',
       header: 'Date',
       sortable: true,
       render: (timestamp) => (
@@ -197,7 +242,12 @@ export default function Transactions() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="card-neon">
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                setSelectedTransaction(transaction);
+                setDetailsModalOpen(true);
+              }}
+            >
               <Eye className="h-4 w-4 mr-2" />
               View Details
             </DropdownMenuItem>
@@ -270,13 +320,13 @@ export default function Transactions() {
         </div>
         
         <div className="flex gap-2">
-          <Button variant="outline" className="btn-ghost-neon">
-            <Filter className="h-4 w-4 mr-2" />
-            Advanced Filters
-          </Button>
-          <Button className="btn-neon-secondary">
+          <Button 
+            variant="outline" 
+            className="btn-ghost-neon"
+            onClick={handleExport}
+          >
             <Download className="h-4 w-4 mr-2" />
-            Export Report
+            Export CSV
           </Button>
         </div>
       </div>
@@ -302,85 +352,93 @@ export default function Transactions() {
         ))}
       </div>
 
-      {/* Transaction Types Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="card-neon lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-electric-glow">Recent Transactions</CardTitle>
-            <CardDescription>
-              Latest financial activities across the platform
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DataTable
-              data={transactions}
-              columns={columns}
-              searchable
-              searchPlaceholder="Search transactions..."
-              onSearch={setSearchQuery}
-              loading={loading}
-              onExport={() => toast({ title: "Export", description: "CSV export would start" })}
+      {/* Filters */}
+      <Card className="card-neon">
+        <CardHeader>
+          <CardTitle className="text-electric-glow">Filters</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <Input
+              placeholder="Search transactions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="input-neon"
             />
-          </CardContent>
-        </Card>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="select-neon">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Types</SelectItem>
+                <SelectItem value="deposit">Deposit</SelectItem>
+                <SelectItem value="withdraw">Withdraw</SelectItem>
+                <SelectItem value="bet">Bet</SelectItem>
+                <SelectItem value="payout">Payout</SelectItem>
+                <SelectItem value="adjustment">Adjustment</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="select-neon">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="reversed">Reversed</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              type="date"
+              placeholder="From Date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="input-neon"
+            />
+            <Input
+              type="date"
+              placeholder="To Date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="input-neon"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card className="card-neon">
-          <CardHeader>
-            <CardTitle className="text-electric-glow">Live Stream</CardTitle>
-            <CardDescription>
-              Real-time transaction monitoring
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {[
-                { type: 'deposit', user: 'player123', amount: 250, time: '2s ago' },
-                { type: 'bet', user: 'player456', amount: 50, time: '5s ago' },
-                { type: 'payout', user: 'player789', amount: 125, time: '8s ago' },
-                { type: 'withdraw', user: 'player321', amount: 180, time: '12s ago' },
-              ].map((activity, index) => {
-                const Icon = getTypeIcon(activity.type as Transaction['type']);
-                const color = getTypeColor(activity.type as Transaction['type']);
-                
-                return (
-                  <motion.div
-                    key={index}
-                    className="flex items-center justify-between p-3 rounded-lg bg-secondary/30"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon className={`h-4 w-4 ${color}`} />
-                      <div>
-                        <div className="font-medium capitalize">{activity.type}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {activity.user}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className={`font-mono ${color}`}>
-                        ${activity.amount}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {activity.time}
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-            
-            <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20">
-              <div className="flex items-center gap-2 text-primary">
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium">Live monitoring active</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Transaction Table */}
+      <Card className="card-neon">
+        <CardHeader>
+          <CardTitle className="text-electric-glow">Recent Transactions</CardTitle>
+          <CardDescription>
+            Latest financial activities across the platform
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            data={transactions}
+            columns={columns}
+            loading={loading}
+            pagination={{
+              currentPage,
+              totalPages: Math.ceil(totalTransactions / 20),
+              onPageChange: setCurrentPage
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Transaction Details Modal */}
+      <TransactionDetailsModal
+        transaction={selectedTransaction}
+        isOpen={detailsModalOpen}
+        onClose={() => {
+          setDetailsModalOpen(false);
+          setSelectedTransaction(null);
+        }}
+      />
 
       {/* Confirm Modal */}
       <ConfirmModal
