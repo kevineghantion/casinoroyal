@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { validateAndSanitize } from './inputValidator';
 
 export interface RealKPIData {
   totalUsers: number;
@@ -323,6 +324,18 @@ export const supabaseAdmin = {
   },
 
   async updateUserStatus(userId: string, status: string, adminId: string, reason: string) {
+    // Validate inputs
+    if (!validateAndSanitize.uuid(userId) || !validateAndSanitize.uuid(adminId)) {
+      throw new Error('Invalid user ID format');
+    }
+    
+    const validStatuses = ['active', 'suspended', 'blocked'];
+    if (!validStatuses.includes(status)) {
+      throw new Error('Invalid status value');
+    }
+    
+    const sanitizedReason = validateAndSanitize.string(reason, 500);
+    
     const { error } = await supabase
       .from('profiles')
       .update({ status })
@@ -337,13 +350,25 @@ export const supabaseAdmin = {
         admin_id: adminId,
         target_user_id: userId,
         action: `status_change_${status}`,
-        details: { reason, new_status: status }
+        details: { reason: sanitizedReason, new_status: status }
       });
 
     return { success: true };
   },
 
   async updateUserRole(userId: string, role: string, adminId: string, reason: string) {
+    // Validate inputs
+    if (!validateAndSanitize.uuid(userId) || !validateAndSanitize.uuid(adminId)) {
+      throw new Error('Invalid user ID format');
+    }
+    
+    const validRoles = ['user', 'admin', 'owner'];
+    if (!validRoles.includes(role)) {
+      throw new Error('Invalid role value');
+    }
+    
+    const sanitizedReason = validateAndSanitize.string(reason, 500);
+    
     const { error } = await supabase
       .from('profiles')
       .update({ role })
@@ -358,13 +383,20 @@ export const supabaseAdmin = {
         admin_id: adminId,
         target_user_id: userId,
         action: 'role_change',
-        details: { reason, new_role: role }
+        details: { reason: sanitizedReason, new_role: role }
       });
 
     return { success: true };
   },
 
   async deleteUser(userId: string, adminId: string, reason: string) {
+    // Validate inputs
+    if (!validateAndSanitize.uuid(userId) || !validateAndSanitize.uuid(adminId)) {
+      throw new Error('Invalid user ID format');
+    }
+    
+    const sanitizedReason = validateAndSanitize.string(reason, 500);
+    
     // Log admin action before deletion
     await supabase
       .from('admin_actions')
@@ -372,7 +404,7 @@ export const supabaseAdmin = {
         admin_id: adminId,
         target_user_id: userId,
         action: 'user_delete',
-        details: { reason }
+        details: { reason: sanitizedReason }
       });
 
     // Delete from auth.users (will cascade to profiles)

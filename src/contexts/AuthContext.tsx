@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { secureLog } from '@/lib/logger';
 
 interface AuthContextType {
   user: User | null;
@@ -105,7 +106,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // If identifier doesn't contain @, treat it as username and look up email
       if (!identifier.includes('@')) {
-        console.log('Username login attempt:', identifier);
+        secureLog.info('Username login attempt', identifier);
         
         // Look up email by username in profiles table (case-insensitive)
         const { data: profileData, error: profileError } = await supabase
@@ -115,22 +116,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .maybeSingle();
 
         if (profileError) {
-          console.error('Database error looking up username:', profileError);
+          secureLog.error('Database error looking up username', profileError.message);
           setIsLoading(false);
           throw new Error('Database error. Please try again.');
         }
 
         if (!profileData || !profileData.email) {
-          console.error('Username not found:', identifier);
+          secureLog.error('Username not found', identifier);
           setIsLoading(false);
           throw new Error('Username not found. Please check your username or try logging in with your email address.');
         }
 
         email = profileData.email!;
-        console.log('Found email for username:', email);
+        secureLog.info('Found email for username', email);
       }
 
-      console.log('Attempting login with email:', email);
+      secureLog.info('Attempting login with email', email);
 
       // Configure session persistence based on remember preference
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -154,25 +155,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (error) {
-        console.error('Supabase auth error:', error);
-        console.error('Error code:', error.status);
-        console.error('Error message:', error.message);
+        secureLog.error('Supabase auth error', error.message);
+        secureLog.error('Error code', String(error.status));
 
         // Check for specific error types
         if (error.message.includes('Invalid login credentials')) {
-          console.error('INVALID CREDENTIALS - Check email/password');
+          secureLog.error('INVALID CREDENTIALS - Check email/password', '');
           throw new Error('Invalid email or password. Please check your credentials.');
         } else if (error.message.includes('User not found')) {
-          console.error('USER NOT FOUND - User may not exist');
+          secureLog.error('USER NOT FOUND - User may not exist', '');
           throw new Error('User not found. Please check your email address.');
         }
 
         throw new Error(error.message);
       }
 
-      console.log('Login successful:', data);
-      console.log('User session:', data.session);
-      console.log('User confirmed:', data.user?.email_confirmed_at);
+      secureLog.info('Login successful', data.user?.id || '');
+      secureLog.info('User session created', data.session ? 'true' : 'false');
 
       // Update last login timestamp
       if (data.user) {
@@ -189,7 +188,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
       return true;
     } catch (error) {
-      console.error('Login error:', error);
+      secureLog.error('Login error', error instanceof Error ? error.message : 'Unknown error');
       setIsLoading(false);
       return false;
     }
@@ -197,7 +196,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const register = async (username: string, email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
-    console.log('Starting registration for:', email, username);
+    secureLog.info('Starting registration', `${email} ${username}`);
 
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -210,9 +209,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (error) {
-        console.error('Supabase registration error:', error);
-        console.error('Error message:', error.message);
-        console.error('Error code:', error.status);
+        secureLog.error('Supabase registration error', error.message);
+        secureLog.error('Error code', String(error.status));
         setIsLoading(false);
         throw new Error(error.message);
       }
@@ -226,7 +224,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const ipData = await ipResponse.json();
           userIP = ipData.ip;
         } catch (error) {
-          console.log('Could not fetch IP:', error);
+          secureLog.warn('Could not fetch IP', error instanceof Error ? error.message : 'Unknown error');
         }
 
         const { error: profileError } = await supabase
@@ -245,14 +243,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           });
 
         if (profileError) {
-          console.error('Profile creation error:', profileError);
-          console.error('Profile error details:', profileError.message);
+          secureLog.error('Profile creation error', profileError.message);
           throw new Error(`Profile creation failed: ${profileError.message}`);
         }
       }
 
-      console.log('Registration successful! User:', data.user?.email);
-      console.log('Profile created successfully');
+      secureLog.info('Registration successful', data.user?.id || '');
+      secureLog.info('Profile created successfully', '');
       
       // Force logout to require explicit login
       await supabase.auth.signOut();
@@ -262,7 +259,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
       return true;
     } catch (error) {
-      console.error('Registration catch block error:', error);
+      secureLog.error('Registration error', error instanceof Error ? error.message : 'Unknown error');
       setIsLoading(false);
       throw error;
     }

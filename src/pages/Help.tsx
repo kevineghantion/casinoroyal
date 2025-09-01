@@ -14,6 +14,7 @@ import {
 import { NeonButton } from '@/components/ui/NeonButton';
 import { useSFX } from '@/hooks/useSFX';
 import { pageTransition, bounceIn } from '@/lib/animations';
+import { secureLog } from '@/lib/logger';
 
 const Help = () => {
   const { playClick } = useSFX();
@@ -72,7 +73,7 @@ const Help = () => {
   const handleContactClick = (method: string) => {
     playClick();
     // In a real app, this would open the appropriate contact method
-    console.log(`Opening ${method} support`);
+    secureLog.info('Opening support method', method);
   };
 
   return (
