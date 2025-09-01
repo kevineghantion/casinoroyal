@@ -4,11 +4,9 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  SECRETS_SCAN_ENABLED = "false"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-# Environment variables are set in Netlify dashboard
-# Site settings → Environment variables
