@@ -155,11 +155,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!identifier.includes('@')) {
         secureLog.info('Username login attempt', identifier);
 
-        // Look up email by username in profiles table (case-insensitive)
+        // Look up email by username in profiles table (truly case-insensitive)
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('email')
-          .ilike('username', identifier)
+          .ilike('username', identifier.toLowerCase())
           .maybeSingle();
 
         if (profileError) {
