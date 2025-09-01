@@ -234,6 +234,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       });
 
+      // Check if email confirmation is required
+      if (data.user && !data.session) {
+        secureLog.info('Email confirmation required', 'User created but not confirmed');
+        setIsLoading(false);
+        throw new Error('Please check your email and click the confirmation link to complete registration.');
+      }
+
       if (error) {
         secureLog.error('Supabase registration error', error.message);
         secureLog.error('Error code', String(error.status));
@@ -241,28 +248,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(error.message);
       }
 
-      // Create profile - simplified to avoid database issues
-      if (data.user) {
-        try {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-              id: data.user.id,
-              username: username.toLowerCase(),
-              email: email.toLowerCase(),
-              role: username.toLowerCase() === 'jaypee' ? 'owner' : 'user'
-            });
+      // Create profile manually (trigger removed due to 500 error)
+      if (!data.user) {
+        setIsLoading(false);
+        throw new Error('Registration failed - no user created.');
+      }
 
-          if (profileError) {
-            secureLog.error('Profile creation error', profileError.message);
-            // Don't throw - continue with registration
-          } else {
-            secureLog.info('Profile created in database', username);
-          }
-        } catch (error) {
-          secureLog.error('Profile creation failed', error instanceof Error ? error.message : 'Unknown error');
-          // Don't throw - continue with registration
-        }
+      secureLog.info('Creating profile for user', data.user.id);
+      
+      // Wait a moment for user to be fully created
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: data.user.id,
+          username: username.toLowerCase(),
+          email: email.toLowerCase(),
+          role: username.toLowerCase() === 'jaypee' ? 'owner' : 'user'
+          // Removed status - let DB use default or trigger
+        });
+
+      if (profileError) {
+        secureLog.error('Profile creation failed', profileError.message);
+        secureLog.error('Profile error code', profileError.code);
+        secureLog.error('Profile error details', JSON.stringify(profileError.details));
+        secureLog.error('Profile error hint', profileError.hint);
+        // Don't fail registration, just log the error
+        secureLog.warn('Continuing without profile - user can login with email');
+      } else {
+        secureLog.info('Profile created successfully', username);
       }
 
       secureLog.info('Registration successful', data.user?.id || '');
