@@ -1,0 +1,235 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 5% 6%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 316 100% 50%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --accent: 192 95% 48%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 316 100% 50%;
+
+    --radius: 0.75rem;
+    
+    /* Neon Casino Theme Colors */
+    --neon-pink: 316 100% 50%;
+    --neon-blue: 192 95% 48%;
+    --neon-purple: 259 83% 58%;
+    --neon-green: 92 100% 50%;
+    --electric-blue: 210 100% 56%;
+    
+    /* Gradients */
+    --gradient-neon-primary: linear-gradient(135deg, hsl(316 100% 50%), hsl(259 83% 58%));
+    --gradient-neon-secondary: linear-gradient(135deg, hsl(192 95% 48%), hsl(210 100% 56%));
+    --gradient-casino-bg: linear-gradient(135deg, hsl(240 10% 3.9%), hsl(240 8% 7%));
+    
+    /* Shadows & Glows */
+    --shadow-neon-pink: 0 0 20px hsl(316 100% 50% / 0.3);
+    --shadow-neon-blue: 0 0 20px hsl(192 95% 48% / 0.3);
+    --shadow-card: 0 8px 32px hsl(240 10% 3.9% / 0.8);
+    --glow-intense: 0 0 30px currentColor, 0 0 60px currentColor;
+    
+    /* Animations */
+    --transition-neon: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --pulse-glow: 0 0 20px currentColor, 0 0 40px currentColor, 0 0 60px currentColor;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    background: var(--gradient-casino-bg);
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  /* Neon Button Variants */
+  .btn-neon-primary {
+    @apply bg-gradient-to-r from-primary to-neon-purple text-primary-foreground;
+    @apply hover:shadow-[var(--shadow-neon-pink)] transition-all duration-300;
+    @apply border border-primary/20 backdrop-blur-sm;
+  }
+  
+  .btn-neon-secondary {
+    @apply bg-gradient-to-r from-accent to-electric-blue text-accent-foreground;
+    @apply hover:shadow-[var(--shadow-neon-blue)] transition-all duration-300;
+    @apply border border-accent/20 backdrop-blur-sm;
+  }
+  
+  .btn-ghost-neon {
+    @apply bg-transparent border-2 border-primary text-primary;
+    @apply hover:bg-primary hover:text-primary-foreground hover:shadow-[var(--shadow-neon-pink)];
+    @apply transition-all duration-300;
+  }
+
+  /* Neon Card Variants */
+  .card-neon {
+    @apply bg-card/50 border border-primary/20 backdrop-blur-sm;
+    @apply shadow-[var(--shadow-card)];
+    @apply hover:border-primary/40 hover:shadow-[var(--shadow-neon-pink)] transition-all duration-300;
+  }
+  
+  .card-glow {
+    @apply bg-gradient-to-br from-card to-secondary/20;
+    @apply border border-accent/30 backdrop-blur-lg;
+    @apply shadow-[var(--shadow-neon-blue)];
+  }
+
+  /* Neon Input Variants */
+  .input-neon {
+    @apply bg-secondary/50 border-primary/30 text-foreground;
+    @apply focus:border-primary focus:shadow-[var(--shadow-neon-pink)] focus:ring-0;
+    @apply placeholder:text-muted-foreground/70 transition-all duration-300;
+  }
+
+  /* Text Effects */
+  .text-neon-glow {
+    @apply bg-gradient-to-r from-primary to-neon-purple bg-clip-text text-transparent;
+    text-shadow: var(--glow-intense);
+  }
+  
+  .text-electric-glow {
+    @apply bg-gradient-to-r from-accent to-electric-blue bg-clip-text text-transparent;
+    text-shadow: var(--shadow-neon-blue);
+  }
+
+  /* Animation Classes */
+  .animate-neon-pulse {
+    animation: neonPulse 2s ease-in-out infinite alternate;
+  }
+  
+  .animate-glow-rotate {
+    animation: glowRotate 3s linear infinite;
+  }
+  
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+}
+
+@layer utilities {
+  .glow-primary {
+    box-shadow: var(--shadow-neon-pink);
+  }
+  
+  .glow-secondary {
+    box-shadow: var(--shadow-neon-blue);
+  }
+  
+  .glass-effect {
+    @apply bg-card/10 backdrop-blur-md border border-white/10;
+  }
+}
+
+@keyframes neonPulse {
+  0%, 100% {
+    text-shadow: 0 0 5px currentColor, 0 0 10px currentColor, 0 0 15px currentColor;
+  }
+  50% {
+    text-shadow: 0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor;
+  }
+}
+
+@keyframes glowRotate {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}

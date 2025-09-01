@@ -1,0 +1,16 @@
+{
+    "name": "casino-royal-server",
+    "version": "1.0.0",
+    "description": "Production server for Casino Royal",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "nodemon server.js"
+    },
+    "dependencies": {
+        "express": "^4.18.2"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.1"
+    }
+}
