@@ -59,20 +59,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       secureLog.info('Profile loaded successfully', `username: ${data.username}, role: ${data.role}`);
       setProfile(data as any);
     } catch (error) {
-      secureLog.error('Profile fetch failed, using fallback', error instanceof Error ? error.message : 'Unknown error');
+      secureLog.error('Profile fetch failed', error instanceof Error ? error.message : 'Unknown error');
       
-      // Keep existing profile if it exists, otherwise create fallback
-      if (profile?.username) {
-        // Keep the existing profile that was loaded successfully
-        secureLog.info('Keeping existing profile', `username: ${profile.username}`);
-      } else if (sessionUser?.email) {
-        // Only create fallback if no profile exists
-        const username = sessionUser.email.includes('jaypee') ? 'jaypee' : sessionUser.email.split('@')[0];
-        const role = username === 'jaypee' ? 'owner' : 'user';
-        setProfile({ username, role });
-        secureLog.info('Created fallback profile', `username: ${username}, role: ${role}`);
+      // FIXED: Don't create fallback profile that uses email prefix
+      // Instead, keep existing profile or set to null to force re-fetch
+      if (!profile?.username) {
+        secureLog.warn('No existing profile to preserve, setting to null');
+        setProfile(null);
       } else {
-        setProfile({ username: 'User', role: 'user' });
+        secureLog.info('Keeping existing profile', `username: ${profile.username}`);
       }
     }
   };
@@ -151,6 +146,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       let email = identifier;
 
+      let foundUsername: string | null = null;
+
       // If identifier doesn't contain @, treat it as username and look up email
       if (!identifier.includes('@')) {
         secureLog.info('Username login attempt', identifier);
@@ -158,7 +155,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Look up email by username in profiles table (truly case-insensitive)
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('email')
+          .select('email, username')
           .ilike('username', identifier.toLowerCase())
           .maybeSingle();
 
@@ -174,9 +171,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           throw new Error('Username not found. Please check your username or try logging in with your email address.');
         }
 
-        // Use type assertion since we know email should exist if we have profileData
+        // FIXED: Store the actual username from database
         email = (profileData as any).email;
-        secureLog.info('Found email for username');
+        foundUsername = (profileData as any).username;
+        secureLog.info('Found email and username for login', `username: ${foundUsername}`);
       }
 
       secureLog.info('Attempting login with email');
@@ -196,6 +194,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!data.session || !data.user) {
         setIsLoading(false);
         throw new Error('Login failed - no session created.');
+      }
+
+      // FIXED: If we found username during lookup, set it immediately
+      if (foundUsername) {
+        setProfile({ username: foundUsername, role: foundUsername.toLowerCase() === 'jaypee' ? 'owner' : 'user' });
+        secureLog.info('Set profile from login lookup', `username: ${foundUsername}`);
       }
 
       secureLog.info('Login successful');
