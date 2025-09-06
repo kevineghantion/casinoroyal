@@ -224,35 +224,36 @@ export const useBalance = () => {
     }
   }, [user, balance, addTransaction]);
 
-  const updateBalance = useCallback(async (amount: number): Promise<boolean> => {
-    if (!user) return false;
+  const updateBalance = useCallback((amount: number): void => {
+    if (!user) return;
 
-    setIsLoading(true);
+    // Update UI instantly
+    const newBalance = balance + amount;
+    setBalance(newBalance);
+    
+    const type = amount > 0 ? 'win' : 'bet';
+    const description = amount > 0 ? `Win of $${amount}` : `Bet of $${Math.abs(amount)}`;
+    addTransaction(type, amount, description);
 
-    try {
-      const newBalance = balance + amount;
-      const { error } = await supabase
-        .from('profiles')
-        .update({ balance: newBalance } as any)
-        .eq('id', user.id);
+    // Sync to database in background
+    (async () => {
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ balance: newBalance } as any)
+          .eq('id', user.id);
 
-      if (error) {
-        secureLog.error('Error updating balance', error);
-        setIsLoading(false);
-        return false;
+        if (error) {
+          secureLog.error('Error syncing balance to database', error);
+          // Revert on error
+          setBalance(balance);
+        }
+      } catch (error) {
+        secureLog.error('Error syncing balance', error);
+        // Revert on error
+        setBalance(balance);
       }
-
-      setBalance(newBalance);
-      const type = amount > 0 ? 'win' : 'bet';
-      const description = amount > 0 ? `Win of $${amount}` : `Bet of $${Math.abs(amount)}`;
-      addTransaction(type, amount, description);
-      setIsLoading(false);
-      return true;
-    } catch (error) {
-      secureLog.error('Error updating balance', error);
-      setIsLoading(false);
-      return false;
-    }
+    })();
   }, [user, balance, addTransaction]);
 
   return {
