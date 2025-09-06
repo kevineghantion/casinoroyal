@@ -14,8 +14,13 @@ import Wallet from "./pages/Wallet";
 import Games from "./pages/Games";
 import Profile from "./pages/Profile";
 import Help from "./pages/Help";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import Rocket from "./pages/games/Rocket";
+import Blackjack from "./pages/games/Blackjack";
 import OwnerRoutes from "./pages/owner/index";
 import { OwnerRoute } from "./components/OwnerRoute";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -31,9 +36,13 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/signup" element={<Register />} />
-            <Route path="/wallet" element={<Wallet />} />
-            <Route path="/games" element={<Games />} />
-            <Route path="/profile" element={<Profile />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/games/rocket" element={<ProtectedRoute><Rocket /></ProtectedRoute>} />
+            <Route path="/games/blackjack" element={<ProtectedRoute><Blackjack /></ProtectedRoute>} />
+            <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+            <Route path="/games" element={<ProtectedRoute><Games /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/help" element={<Help />} />
             <Route path="/owner/*" element={<OwnerRoute><OwnerRoutes /></OwnerRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

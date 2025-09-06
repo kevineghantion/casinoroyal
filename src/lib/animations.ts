@@ -101,7 +101,11 @@ export const slideInFromRight = {
   },
   visible: {
     x: 0,
-    opacity: 1
+    opacity: 1,
+    transition: {
+      duration: 0.1,
+      ease: "easeOut"
+    }
   }
 };
 

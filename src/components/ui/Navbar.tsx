@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useSFX } from '@/hooks/useSFX';
 import { NeonButton } from './NeonButton';
-import { ToggleSound } from './ToggleSound';
+
 import { NavBalanceButton } from './NavBalanceButton';
 import { slideInFromRight, hoverGlow } from '@/lib/animations';
 
@@ -34,13 +34,18 @@ export const Navbar = () => {
   ];
 
   const handleNavClick = () => {
-    playClick();
     setIsOpen(false);
+    playClick();
   };
 
-  const handleLogout = async () => {
-    playClick();
+  // Close menu when location changes
+  useEffect(() => {
     setIsOpen(false);
+  }, [location.pathname]);
+
+  const handleLogout = async () => {
+    setIsOpen(false);
+    playClick();
     
     try {
       await logout();
@@ -125,8 +130,6 @@ export const Navbar = () => {
 
           {/* User Actions */}
           <div className="hidden md:flex items-center space-x-4">
-            <ToggleSound />
-
             {user ? (
               <div className="flex items-center space-x-4">
                 <div className="text-sm text-neon-gray">
@@ -148,8 +151,8 @@ export const Navbar = () => {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    playClick();
                     navigate('/login');
+                    playClick();
                   }}
                 >
                   Login
@@ -158,8 +161,8 @@ export const Navbar = () => {
                   variant="primary"
                   size="sm"
                   onClick={() => {
-                    playClick();
                     navigate('/register');
+                    playClick();
                   }}
                 >
                   Sign Up
@@ -172,8 +175,8 @@ export const Navbar = () => {
           <div className="md:hidden">
             <motion.button
               onClick={() => {
-                playClick();
                 setIsOpen(!isOpen);
+                playClick();
               }}
               className="p-2 rounded-lg text-neon-white hover:text-neon-pink hover:bg-bg-card transition-colors"
               variants={hoverGlow}
@@ -196,6 +199,7 @@ export const Navbar = () => {
             initial="hidden"
             animate="visible"
             exit="hidden"
+            transition={{ duration: 0.15, ease: "easeInOut" }}
           >
             <div className="px-4 py-4 space-y-2">
               {navigation.map((item) => {
@@ -246,10 +250,7 @@ export const Navbar = () => {
               )}
 
               <div className="pt-4 border-t border-neon-gray-dark">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm text-neon-gray">Sound Effects</span>
-                  <ToggleSound />
-                </div>
+
 
                 {user ? (
                   <div className="space-y-3">
@@ -272,9 +273,9 @@ export const Navbar = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        playClick();
                         navigate('/login');
                         setIsOpen(false);
+                        playClick();
                       }}
                       className="w-full"
                     >
@@ -284,9 +285,9 @@ export const Navbar = () => {
                       variant="primary"
                       size="sm"
                       onClick={() => {
-                        playClick();
                         navigate('/register');
                         setIsOpen(false);
+                        playClick();
                       }}
                       className="w-full"
                     >

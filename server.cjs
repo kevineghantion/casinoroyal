@@ -1,6 +1,5 @@
-import express from 'express';
-import cors from 'cors';
-import fetch from 'node-fetch';
+const express = require('express');
+const cors = require('cors');
 
 const app = express();
 const PORT = 3001;
@@ -10,23 +9,22 @@ app.use(express.json());
 
 // Test endpoint
 app.get('/api/test', (req, res) => {
+  console.log('Test endpoint hit');
   res.json({ message: 'API server working!' });
-});
-
-// Simple test crypto endpoint
-app.post('/api/test-crypto', async (req, res) => {
-  console.log('Test crypto request received');
-  res.json({ test: 'success', addresses: { bitcoin: 'test-btc-address' } });
 });
 
 // Crypto deposit endpoint
 app.post('/api/crypto-deposit', async (req, res) => {
-  console.log('Received request:', req.body);
+  console.log('Crypto deposit request:', req.body);
   const { amount, currency, userId, description } = req.body;
   const COINBASE_API_KEY = 'ebe0c643-cbac-43ae-b083-76b90bd749e5';
 
   try {
     console.log('Making request to Coinbase...');
+    
+    // Use dynamic import for fetch in Node.js
+    const fetch = (await import('node-fetch')).default;
+    
     const response = await fetch('https://api.commerce.coinbase.com/charges', {
       method: 'POST',
       headers: {
@@ -59,20 +57,11 @@ app.post('/api/crypto-deposit', async (req, res) => {
     res.json(result.data);
   } catch (error) {
     console.error('Crypto deposit error:', error.message);
-    console.error('Full error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Handle server errors
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-});
-
-process.on('unhandledRejection', (error) => {
-  console.error('Unhandled Rejection:', error);
-});
-
 app.listen(PORT, () => {
   console.log(`API server running on http://localhost:${PORT}`);
+  console.log('Server is ready to accept requests');
 });

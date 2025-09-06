@@ -25,14 +25,22 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<{ username: string; role?: string } | null>(null);
+  const [profile, setProfile] = useState<{ username: string; role?: string } | null>(() => {
+    // Load cached profile instantly
+    try {
+      const cached = localStorage.getItem('casino_profile');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProfile = async (userId: string, sessionUser?: User) => {
     secureLog.info('Fetching profile for user', userId);
     
     const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('Profile fetch timeout')), 500)
+      setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
     );
     
     const queryPromise = supabase
@@ -57,8 +65,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       secureLog.info('Profile loaded successfully', `username: ${data.username}, role: ${data.role}`);
-      setProfile(data as any);
+      const profileData = data as any;
+      setProfile(profileData);
+      // Cache for instant loading
+      localStorage.setItem('casino_profile', JSON.stringify(profileData));
     } catch (error) {
+      // Silently handle timeout - cached profile already loaded
+      if (error instanceof Error && error.message === 'Profile fetch timeout') {
+        return; // Don't log timeout errors
+      }
       secureLog.error('Profile fetch failed', error instanceof Error ? error.message : 'Unknown error');
       
       // FIXED: Don't create fallback profile that uses email prefix
@@ -198,7 +213,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // FIXED: If we found username during lookup, set it immediately
       if (foundUsername) {
-        setProfile({ username: foundUsername, role: foundUsername.toLowerCase() === 'jaypee' ? 'owner' : 'user' });
+        const profileData = { username: foundUsername, role: foundUsername.toLowerCase() === 'jaypee' ? 'owner' : 'user' };
+        setProfile(profileData);
+        localStorage.setItem('casino_profile', JSON.stringify(profileData));
         secureLog.info('Set profile from login lookup', `username: ${foundUsername}`);
       }
 
@@ -308,6 +325,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setProfile(null);
     setIsLoading(false);
+    localStorage.removeItem('casino_profile');
     
     try {
       // Clear localStorage first

@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { supabase } from '@/integrations/supabase/client';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface SeedFundsModalProps {
   open: boolean;
@@ -21,6 +22,7 @@ export function SeedFundsModal({ open, onOpenChange }: SeedFundsModalProps) {
   });
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +43,8 @@ export function SeedFundsModal({ open, onOpenChange }: SeedFundsModalProps) {
       const result = await supabaseAdmin.adjustUserBalance(
         users.id, 
         parseFloat(formData.amount), 
-        formData.reason
+        formData.reason,
+        user!.id
       );
 
       toast({

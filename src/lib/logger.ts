@@ -11,15 +11,17 @@ export const sanitizeForLog = (input: any): string => {
     .substring(0, 200); // Limit length
 };
 
+const isDev = import.meta.env.DEV;
+
 export const logger = {
   info: (message: string, data?: any) => {
-    console.log(sanitizeForLog(message), data ? sanitizeForLog(data) : '');
+    if (isDev) console.log(sanitizeForLog(message), data ? sanitizeForLog(data) : '');
   },
   error: (message: string, data?: any) => {
-    console.error(sanitizeForLog(message), data ? sanitizeForLog(data) : '');
+    if (isDev) console.error(sanitizeForLog(message), data ? sanitizeForLog(data) : '');
   },
   warn: (message: string, data?: any) => {
-    console.warn(sanitizeForLog(message), data ? sanitizeForLog(data) : '');
+    if (isDev) console.warn(sanitizeForLog(message), data ? sanitizeForLog(data) : '');
   }
 };
 

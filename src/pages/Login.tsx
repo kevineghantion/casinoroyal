@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -11,7 +11,10 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+  
+  const from = location.state?.from?.pathname || '/';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +28,7 @@ const Login = () => {
 
     try {
       await login(identifier, password, remember);
-      navigate('/');
+      navigate(from, { replace: true });
     } catch (error: any) {
       console.error('Login error:', error);
       alert(error.message || 'Login failed');
@@ -59,10 +62,13 @@ const Login = () => {
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neon-gray" />
                 <input
                   type="text"
+                  id="identifier"
+                  name="identifier"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-bg-darker border border-neon-gray-dark rounded-lg text-neon-white placeholder-neon-gray focus:border-neon-pink focus:ring-2 focus:ring-neon-pink/20 outline-none transition-all"
                   placeholder="Enter your email or username"
+                  autoComplete="username"
                   required
                 />
               </div>
@@ -77,10 +83,13 @@ const Login = () => {
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neon-gray" />
                 <input
                   type={showPassword ? "text" : "password"}
+                  id="password"
+                  name="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-12 py-3 bg-bg-darker border border-neon-gray-dark rounded-lg text-neon-white placeholder-neon-gray focus:border-neon-pink focus:ring-2 focus:ring-neon-pink/20 outline-none transition-all"
                   placeholder="Enter your password"
+                  autoComplete="current-password"
                   required
                 />
                 <button
@@ -93,18 +102,26 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Remember Me */}
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="remember"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-                className="w-4 h-4 text-neon-pink bg-bg-darker border-neon-gray-dark rounded focus:ring-neon-pink/20 focus:ring-2"
-              />
-              <label htmlFor="remember" className="ml-2 text-sm text-neon-gray">
-                Remember me
-              </label>
+            {/* Remember Me & Forgot Password */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="remember"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  className="w-4 h-4 text-neon-pink bg-bg-darker border-neon-gray-dark rounded focus:ring-neon-pink/20 focus:ring-2"
+                />
+                <label htmlFor="remember" className="ml-2 text-sm text-neon-gray">
+                  Remember me
+                </label>
+              </div>
+              <Link
+                to="/forgot-password"
+                className="text-sm text-electric-blue hover:text-neon-white underline transition-colors"
+              >
+                Forgot Password?
+              </Link>
             </div>
 
             {/* Submit Button */}

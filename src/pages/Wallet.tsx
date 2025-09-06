@@ -8,6 +8,7 @@ import { useBalance } from '@/hooks/useBalance';
 import { useSFX } from '@/hooks/useSFX';
 import { pageTransition, bounceIn, staggerChildren } from '@/lib/animations';
 import { useToast } from '@/hooks/use-toast';
+import { createCryptoDeposit } from '@/lib/cryptoPayments';
 
 const Wallet = () => {
   const { user } = useAuth();
@@ -18,6 +19,10 @@ const Wallet = () => {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [showCryptoModal, setShowCryptoModal] = useState(false);
+  const [cryptoAmount, setCryptoAmount] = useState('');
+  const [isCreatingCharge, setIsCreatingCharge] = useState(false);
+  const [showCryptoAddresses, setShowCryptoAddresses] = useState(null);
 
   const handleDeposit = () => {
     const amount = parseFloat(depositAmount);
@@ -38,6 +43,47 @@ const Wallet = () => {
     });
     setDepositAmount('');
     setShowDepositModal(false);
+  };
+
+  const handleCryptoDeposit = async () => {
+    const amount = parseFloat(cryptoAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid deposit amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreatingCharge(true);
+    try {
+      const charge = await createCryptoDeposit({
+        amount,
+        currency: 'USD',
+        userId: user!.id,
+        description: `Casino Royal deposit - $${amount}`
+      });
+
+      // Show crypto addresses directly on site
+      setShowCryptoModal(false);
+      setShowCryptoAddresses(charge);
+      
+      toast({
+        title: "Crypto Addresses Generated!",
+        description: "Send crypto to any address below",
+      });
+      
+      setCryptoAmount('');
+    } catch (error: any) {
+      toast({
+        title: "Payment Error",
+        description: error.message || "Failed to create crypto payment",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingCharge(false);
+    }
   };
 
   const handleWithdraw = () => {
@@ -133,7 +179,7 @@ const Wallet = () => {
 
         {/* Action Buttons */}
         <motion.div
-          className="grid md:grid-cols-2 gap-6"
+          className="grid md:grid-cols-3 gap-4"
           variants={staggerChildren}
           initial="hidden"
           animate="visible"
@@ -145,7 +191,21 @@ const Wallet = () => {
               onClick={() => setShowDepositModal(true)}
             >
               <Plus className="w-6 h-6 mr-2" />
-              Deposit Funds
+              Deposit (Card)
+            </NeonButton>
+          </motion.div>
+          
+          <motion.div variants={bounceIn}>
+            <NeonButton
+              size="lg"
+              className="w-full py-6 bg-gradient-to-r from-neon-pink/20 to-neon-pink/10 border border-neon-pink/30 hover:shadow-neon-pink"
+              onClick={() => {
+                setShowCryptoModal(true);
+                playClick();
+              }}
+            >
+              <Plus className="w-6 h-6 mr-2" />
+              Crypto Deposit
             </NeonButton>
           </motion.div>
           
@@ -157,7 +217,7 @@ const Wallet = () => {
               onClick={() => setShowWithdrawModal(true)}
             >
               <Minus className="w-6 h-6 mr-2" />
-              Withdraw Funds
+              Withdraw
             </NeonButton>
           </motion.div>
         </motion.div>
@@ -224,6 +284,8 @@ const Wallet = () => {
             <div className="space-y-4">
               <input
                 type="number"
+                id="depositAmount"
+                name="depositAmount"
                 value={depositAmount}
                 onChange={(e) => setDepositAmount(e.target.value)}
                 placeholder="Enter amount"
@@ -246,6 +308,49 @@ const Wallet = () => {
         </div>
       )}
 
+      {/* Crypto Deposit Modal */}
+      {showCryptoModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            className="bg-bg-card border border-neon-pink/30 rounded-2xl p-6 w-full max-w-md"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+          >
+            <h3 className="text-xl font-bold text-neon-white mb-4">Crypto Deposit</h3>
+            <p className="text-neon-gray text-sm mb-4">
+              Pay with Bitcoin, Ethereum, Litecoin, and more!
+            </p>
+            <div className="space-y-4">
+              <input
+                type="number"
+                id="cryptoAmount"
+                name="cryptoAmount"
+                value={cryptoAmount}
+                onChange={(e) => setCryptoAmount(e.target.value)}
+                placeholder="Enter USD amount"
+                className="w-full p-3 bg-bg-darker border border-neon-gray-dark rounded-lg text-neon-white placeholder-neon-gray focus:border-neon-pink focus:ring-2 focus:ring-neon-pink/20 outline-none"
+              />
+              <div className="flex space-x-3">
+                <NeonButton 
+                  onClick={handleCryptoDeposit} 
+                  className="flex-1"
+                  disabled={isCreatingCharge}
+                >
+                  {isCreatingCharge ? 'Creating...' : 'Pay with Crypto'}
+                </NeonButton>
+                <NeonButton 
+                  variant="secondary" 
+                  onClick={() => setShowCryptoModal(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </NeonButton>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {/* Withdraw Modal */}
       {showWithdrawModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -258,6 +363,8 @@ const Wallet = () => {
             <div className="space-y-4">
               <input
                 type="number"
+                id="withdrawAmount"
+                name="withdrawAmount"
                 value={withdrawAmount}
                 onChange={(e) => setWithdrawAmount(e.target.value)}
                 placeholder="Enter amount"
@@ -280,6 +387,79 @@ const Wallet = () => {
                 </NeonButton>
               </div>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Crypto Addresses Modal */}
+      {showCryptoAddresses && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            className="bg-bg-card border border-neon-pink/30 rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+          >
+            <h3 className="text-xl font-bold text-neon-white mb-4">Send Crypto Payment</h3>
+            <p className="text-neon-gray text-sm mb-6">
+              Send ${showCryptoAddresses.pricing?.local?.amount} worth of crypto to any address:
+            </p>
+            
+            <div className="space-y-4">
+              {/* Bitcoin */}
+              {showCryptoAddresses.addresses?.bitcoin && (
+                <div className="bg-bg-darker/50 rounded-lg p-4 border border-orange-500/30">
+                  <div className="flex items-center mb-2">
+                    <div className="w-6 h-6 bg-orange-500 rounded-full mr-2"></div>
+                    <span className="font-bold text-orange-400">Bitcoin (BTC)</span>
+                  </div>
+                  <div className="bg-bg-darker rounded p-2 border border-neon-gray-dark">
+                    <p className="text-xs text-neon-white font-mono break-all">
+                      {showCryptoAddresses.addresses.bitcoin}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => navigator.clipboard.writeText(showCryptoAddresses.addresses.bitcoin)}
+                    className="text-xs text-electric-blue hover:text-neon-white mt-1"
+                  >
+                    📋 Copy Address
+                  </button>
+                </div>
+              )}
+              
+              {/* Ethereum */}
+              {showCryptoAddresses.addresses?.ethereum && (
+                <div className="bg-bg-darker/50 rounded-lg p-4 border border-blue-500/30">
+                  <div className="flex items-center mb-2">
+                    <div className="w-6 h-6 bg-blue-500 rounded-full mr-2"></div>
+                    <span className="font-bold text-blue-400">Ethereum (ETH)</span>
+                  </div>
+                  <div className="bg-bg-darker rounded p-2 border border-neon-gray-dark">
+                    <p className="text-xs text-neon-white font-mono break-all">
+                      {showCryptoAddresses.addresses.ethereum}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => navigator.clipboard.writeText(showCryptoAddresses.addresses.ethereum)}
+                    className="text-xs text-electric-blue hover:text-neon-white mt-1"
+                  >
+                    📋 Copy Address
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-6 p-4 bg-lime-green/10 border border-lime-green/30 rounded-lg">
+              <p className="text-xs text-lime-green">
+                ⚡ Send crypto to any address above. Payment confirmed automatically!
+              </p>
+            </div>
+            
+            <NeonButton 
+              onClick={() => setShowCryptoAddresses(null)}
+              className="w-full mt-4"
+            >
+              Close
+            </NeonButton>
           </motion.div>
         </div>
       )}

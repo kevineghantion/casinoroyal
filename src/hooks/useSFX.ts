@@ -17,43 +17,50 @@ export const useSFX = (): SFXHook => {
   });
 
   const toggle = useCallback(() => {
-    const newState = !isEnabled;
-    setIsEnabled(newState);
-    localStorage.setItem('casino_sfx_enabled', JSON.stringify(newState));
-  }, [isEnabled]);
+    setIsEnabled(prev => {
+      const newState = !prev;
+      localStorage.setItem('casino_sfx_enabled', JSON.stringify(newState));
+      return newState;
+    });
+  }, []);
 
   const playSound = useCallback((soundType: string) => {
     if (!isEnabled) return;
     
-    // For now, we'll use the Web Audio API to generate simple tones
-    // In production, you would load actual audio files
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    
-    const soundMap: Record<string, { frequency: number; duration: number; type: OscillatorType }> = {
-      click: { frequency: 800, duration: 0.1, type: 'sine' },
-      card: { frequency: 600, duration: 0.2, type: 'square' },
-      rocket: { frequency: 400, duration: 0.5, type: 'sawtooth' },
-      cashOut: { frequency: 1000, duration: 0.3, type: 'triangle' },
-      win: { frequency: 1200, duration: 0.6, type: 'sine' }
-    };
+    // Use setTimeout to make sound non-blocking
+    setTimeout(() => {
+      try {
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        
+        const soundMap: Record<string, { frequency: number; duration: number }> = {
+          click: { frequency: 800, duration: 0.05 },
+          card: { frequency: 600, duration: 0.1 },
+          rocket: { frequency: 400, duration: 0.2 },
+          cashOut: { frequency: 1000, duration: 0.15 },
+          win: { frequency: 1200, duration: 0.3 }
+        };
 
-    const sound = soundMap[soundType];
-    if (!sound) return;
+        const sound = soundMap[soundType];
+        if (!sound) return;
 
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
 
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
 
-    oscillator.frequency.setValueAtTime(sound.frequency, audioContext.currentTime);
-    oscillator.type = sound.type;
+        oscillator.frequency.value = sound.frequency;
+        oscillator.type = 'sine';
 
-    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + sound.duration);
+        gainNode.gain.setValueAtTime(0.05, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + sound.duration);
 
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + sound.duration);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + sound.duration);
+      } catch (e) {
+        // Ignore audio errors
+      }
+    }, 0);
   }, [isEnabled]);
 
   const playClick = useCallback(() => playSound('click'), [playSound]);

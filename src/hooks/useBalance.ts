@@ -224,6 +224,37 @@ export const useBalance = () => {
     }
   }, [user, balance, addTransaction]);
 
+  const updateBalance = useCallback(async (amount: number): Promise<boolean> => {
+    if (!user) return false;
+
+    setIsLoading(true);
+
+    try {
+      const newBalance = balance + amount;
+      const { error } = await supabase
+        .from('profiles')
+        .update({ balance: newBalance } as any)
+        .eq('id', user.id);
+
+      if (error) {
+        secureLog.error('Error updating balance', error);
+        setIsLoading(false);
+        return false;
+      }
+
+      setBalance(newBalance);
+      const type = amount > 0 ? 'win' : 'bet';
+      const description = amount > 0 ? `Win of $${amount}` : `Bet of $${Math.abs(amount)}`;
+      addTransaction(type, amount, description);
+      setIsLoading(false);
+      return true;
+    } catch (error) {
+      secureLog.error('Error updating balance', error);
+      setIsLoading(false);
+      return false;
+    }
+  }, [user, balance, addTransaction]);
+
   return {
     balance,
     isLoading,
@@ -232,6 +263,7 @@ export const useBalance = () => {
     withdraw,
     bet,
     win,
+    updateBalance,
     refreshBalance,
     devSimulateCompleteDeposit
   };

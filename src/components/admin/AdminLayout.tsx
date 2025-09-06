@@ -28,7 +28,7 @@ const navigation = [
 ];
 
 export function AdminLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
 
   const isActivePath = (path: string) => {
@@ -83,18 +83,11 @@ export function AdminLayout() {
 
       <div className="flex">
         {/* Sidebar */}
-        <AnimatePresence>
-          {(sidebarOpen || window.innerWidth >= 1024) && (
-            <motion.aside
-              className={cn(
-                "fixed lg:static inset-y-0 left-0 z-40 w-64 bg-card/30 backdrop-blur-xl border-r border-border/50",
-                "lg:translate-x-0"
-              )}
-              initial={{ x: -256 }}
-              animate={{ x: 0 }}
-              exit={{ x: -256 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-            >
+        <aside className={cn(
+          "fixed lg:static inset-y-0 left-0 z-40 w-64 bg-card/30 backdrop-blur-xl border-r border-border/50 transition-transform duration-200",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+          "lg:translate-x-0" // Always visible on desktop
+        )}>
               <nav className="flex flex-col h-full pt-6 pb-4">
                 <div className="flex-1 px-4 space-y-2">
                   {navigation.map((item) => {
@@ -132,12 +125,10 @@ export function AdminLayout() {
                   </div>
                 </div>
               </nav>
-            </motion.aside>
-          )}
-        </AnimatePresence>
+        </aside>
 
         {/* Main Content */}
-        <main className="flex-1 min-h-screen">
+        <main className="flex-1 min-h-screen lg:ml-0">
           <motion.div
             className="p-6"
             initial={{ opacity: 0, y: 20 }}

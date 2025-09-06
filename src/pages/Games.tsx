@@ -46,8 +46,8 @@ const Games = () => {
   ];
 
   const handleGameClick = (route: string) => {
-    playClick();
     navigate(route);
+    playClick();
   };
 
   return (
